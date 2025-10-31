@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-gray-50">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fiscal Policy Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* GOOGLE SITES EMBED FIX */
+        html, body {
+            margin: 0;
+            padding-top: 40px;        /* add breathing room at the top so it's not cut off */
+            overflow-y: auto;         /* allow scrolling inside iframe */
+            height: auto !important;  /* don't force viewport height */
+            background: #f8fafc;
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont,
+                "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        input[type="radio"]:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+        #report-container h4 { font-weight:600; color:#111827; margin-top:1rem; }
+        #report-container p { font-size:0.9rem; color:#374151; margin-bottom:0.5rem; }
+        #report-container strong { color:#1d4ed8; }
+        .mood-row span { display:flex; align-items:center; gap:0.5rem; font-size:0.9rem; }
+        .mood-emoji { font-size:1.1rem; line-height:1; }
+        .q-block-correct   { border-left:4px solid #16a34a; background-color:#ecfdf5; border-radius:0.5rem; padding:0.75rem 1rem; }
+        .q-block-incorrect { border-left:4px solid #dc2626; background-color:#fef2f2; border-radius:0.5rem; padding:0.75rem 1rem; }
+        .tag-pill { font-size:0.75rem; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:999px; padding:0.25rem .5rem; font-weight:500; }
+        .brief-chip { cursor:pointer; border-radius:.75rem; border:1px solid #cbd5e1; background:#fff; padding:.5rem .75rem; font-size:.875rem; line-height:1.25rem; font-weight:500; color:#334155; box-shadow:0 1px 2px rgb(0 0 0 / .05); }
+        .brief-chip:hover { background:#f8fafc; }
+        .hidden { display:none; }
+    </style>
+</head>
+
+<body class="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-slate-50 to-slate-100" style="min-height:auto;">
+    <div class="max-w-4xl w-full space-y-8">
+
+        <!-- GAME SHELL -->
+        <div class="bg-white p-8 sm:p-10 rounded-2xl shadow-xl border border-gray-200 relative">
+
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+                    Fiscal Policy Simulator
+                </h1>
+                <p class="mt-3 text-lg text-gray-600">
+                    You are the Finance Minister. Read the economic briefing and choose the correct tax response.
+                </p>
+            </div>
+
+            <!-- Progress / Score / Mini Restart -->
+            <div class="flex flex-col sm:flex-row sm:justify-between gap-4 mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                <div class="flex flex-col">
+                    <div id="progress-text" class="text-lg font-semibold text-indigo-800">Briefing 1 / 5</div>
+                    <div class="text-xs text-indigo-700">Scenarios are random each game.</div>
+                </div>
+                <div class="flex items-start sm:items-end justify-between sm:flex-col flex-row gap-4 w-full sm:w-auto">
+                    <div id="score-text" class="text-lg font-semibold text-indigo-800">Total Score: 0</div>
+                    <button id="restart-mini" class="inline-flex justify-center rounded-lg border border-indigo-300 bg-white px-3 py-2 text-sm font-medium text-indigo-700 shadow-sm hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all">
+                        New Game
+                    </button>
+                </div>
+            </div>
+
+            <!-- Scenario / Economic Briefing -->
+            <div class="mb-6 p-6 bg-gray-100 rounded-lg border border-gray-300">
+                <h3 class="text-xl font-semibold text-gray-900 mb-3">Economic Briefing:</h3>
+                <p id="problem-text" class="text-gray-700 text-lg leading-relaxed">
+                    Loading...
+                </p>
+
+                <!-- tags like "Growth / Inequality / Environment" -->
+                <div id="tag-row" class="flex flex-wrap gap-2 mt-4 text-sm text-gray-600"></div>
+            </div>
+
+            <!-- Policy Briefing Helper -->
+            <div class="mb-8">
+                <button id="briefing-toggle" class="w-full flex justify-between items-center rounded-lg border border-slate-300 bg-white px-4 py-3 text-left text-base font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition">
+                    <span>Open Policy Briefing (what each tax does)</span>
+                    <span class="text-slate-400 text-sm" id="briefing-arrow">▼</span>
+                </button>
+
+                <div id="briefing-panel" class="hidden border border-slate-200 border-t-0 rounded-b-lg bg-slate-50 p-4 text-sm text-slate-700 space-y-4">
+                    <p class="text-slate-600 text-sm">
+                        Click a tool to get advice from your policy team (this part is <strong>not</strong> scored).
+                    </p>
+
+                    <div id="briefing-chips" class="flex flex-wrap gap-2">
+                        <!-- chips injected here -->
+                    </div>
+
+                    <div id="briefing-details" class="bg-white border border-slate-200 rounded-xl p-4 shadow-inner text-slate-800 hidden">
+                        <div class="font-semibold text-slate-900 text-base mb-1" id="briefing-title"></div>
+                        <div class="text-sm leading-relaxed space-y-1" id="briefing-body"></div>
+                        <div class="text-xs text-slate-500 italic mt-3">Use this to think before answering. It won’t choose for you.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GAME FORM / QUESTIONS / FEEDBACK / FINAL -->
+            <form id="policy-form" class="space-y-10">
+
+                <!-- QUESTIONS AREA -->
+                <div id="form-container">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">
+
+                        <!-- Q1: Action -->
+                        <fieldset>
+                            <legend class="text-lg font-semibold mb-3 text-gray-900">1. Policy Action</legend>
+                            <div class="space-y-3">
+                                <label class="flex items-center gap-3 p-4 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-all w-full">
+                                    <input type="radio" name="action" value="increase" class="h-5 w-5 text-indigo-600 focus:ring-indigo-500">
+                                    <span>Increase Tax</span>
+                                </label>
+                                <label class="flex items-center gap-3 p-4 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-all w-full">
+                                    <input type="radio" name="action" value="decrease" class="h-5 w-5 text-indigo-600 focus:ring-indigo-500">
+                                    <span>Decrease Tax</span>
+                                </label>
+                            </div>
+                        </fieldset>
+
+                        <!-- Q3: Direct / Indirect (I'll keep 3 here for layout balance) -->
+                        <fieldset>
+                            <legend class="text-lg font-semibold mb-3 text-gray-900">3. Tax Tool</legend>
+                            <div class="space-y-3">
+                                <label class="flex items-center gap-3 p-4 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-all w-full">
+                                    <input type="radio" name="taxTool" value="direct" class="h-5 w-5 text-indigo-600 focus:ring-indigo-500">
+                                    <span>Direct Tax</span>
+                                </label>
+                                <label class="flex items-center gap-3 p-4 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-all w-full">
+                                    <input type="radio" name="taxTool" value="indirect" class="h-5 w-5 text-indigo-600 focus:ring-indigo-500">
+                                    <span>Indirect Tax</span>
+                                </label>
+                            </div>
+                        </fieldset>
+
+                        <!-- Q2: Which Tax -->
+                        <fieldset class="md:col-span-2">
+                            <legend class="text-lg font-semibold mb-3 text-gray-900">2. Which Tax is Most Appropriate?</legend>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                <label class="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-all w-full">
+                                    <input type="radio" name="taxName" value="income tax" class="h-5 w-5 text-indigo-600 focus:ring-indigo-500">
+                                    <span>Income Tax</span>
+                                </label>
+                                <label class="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-all w-full">
+                                    <input type="radio" name="taxName" value="corporation tax" class="h-5 w-5 text-indigo-600 focus:ring-indigo-500">
+                                    <span>Corporation Tax</span>
+                                </label>
+                                <label class="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-all w-full">
+                                    <input type="radio" name="taxName" value="vat" class="h-5 w-5 text-indigo-600 focus:ring-indigo-500">
+                                    <span>VAT / Sales Tax</span>
+                                </label>
+                                <label class="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-all w-full">
+                                    <input type="radio" name="taxName" value="excise duties" class="h-5 w-5 text-indigo-600 focus:ring-indigo-500">
+                                    <span>Excise Duties (e.g. sugar / fuel)</span>
+                                </label>
+                                <label class="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-all w-full">
+                                    <input type="radio" name="taxName" value="inheritance tax" class="h-5 w-5 text-indigo-600 focus:ring-indigo-500">
+                                    <span>Inheritance Tax</span>
+                                </label>
+                                <label class="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-all w-full">
+                                    <input type="radio" name="taxName" value="capital gains tax" class="h-5 w-5 text-indigo-600 focus:ring-indigo-500">
+                                    <span>Capital Gains Tax</span>
+                                </label>
+                                <label class="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-all w-full">
+                                    <input type="radio" name="taxName" value="national insurance" class="h-5 w-5 text-indigo-600 focus:ring-indigo-500">
+                                    <span>National Insurance / Payroll Tax</span>
+                                </label>
+                            </div>
+                        </fieldset>
+
+                        <!-- Q4: Progressive / Regressive / Proportional -->
+                        <fieldset class="md:col-span-2">
+                            <legend class="text-lg font-semibold mb-3 text-gray-900">4. Tax System Classification</legend>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <label class="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-all w-full">
+                                    <input type="radio" name="taxSystem" value="progressive" class="h-5 w-5 text-indigo-600 focus:ring-indigo-500">
+                                    <span>Progressive</span>
+                                </label>
+                                <label class="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-all w-full">
+                                    <input type="radio" name="taxSystem" value="regressive" class="h-5 w-5 text-indigo-600 focus:ring-indigo-500">
+                                    <span>Regressive</span>
+                                </label>
+                                <label class="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-all w-full">
+                                    <input type="radio" name="taxSystem" value="proportional" class="h-5 w-5 text-indigo-600 focus:ring-indigo-500">
+                                    <span>Proportional</span>
+                                </label>
+                            </div>
+                        </fieldset>
+                    </div>
+                </div>
+
+                <!-- ROUND RESULT / FEEDBACK -->
+                <div id="report-container" class="hidden space-y-6">
+                    <h2 class="text-2xl font-bold text-gray-900">Round Result</h2>
+                    <div id="round-score-display" class="text-xl font-semibold text-indigo-700"></div>
+
+                    <!-- Stakeholder Mood -->
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                        <h3 class="text-lg font-semibold text-slate-800 mb-2">Stakeholder Impact</h3>
+                        <p class="text-sm text-slate-600 mb-4">
+                            Based on the <span class="font-semibold">correct</span> policy for this scenario.
+                        </p>
+                        <div id="mood-panel" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-700 text-sm mood-row">
+                            <!-- injected -->
+                        </div>
+                    </div>
+
+                    <!-- Examiner's Report -->
+                    <div class="border-t border-gray-200 pt-6">
+                        <h3 class="text-xl font-semibold text-gray-900 mb-4">Examiner's Report</h3>
+                        <div id="examiner-report" class="space-y-4 text-sm leading-relaxed text-gray-800">
+                            <!-- injected -->
+                        </div>
+                    </div>
+
+                    <!-- Show Correct Answers -->
+                    <div>
+                        <button id="show-correct-btn" type="button" class="inline-flex justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all">
+                            Show correct answers on the form
+                        </button>
+                    </div>
+                </div>
+
+                <!-- FINAL SCORE -->
+                <div id="final-score-container" class="hidden text-center space-y-6">
+                    <h2 class="text-3xl font-bold text-gray-900">Game Over</h2>
+                    <p id="final-score-text" class="text-2xl font-semibold text-indigo-800">Your final score is: 0 / 20</p>
+
+                    <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-5 text-left text-sm leading-relaxed text-indigo-900 max-w-xl mx-auto" id="final-examiner-block">
+                        <!-- injected -->
+                    </div>
+
+                    <button id="restart-button" type="button" class="w-full sm:w-auto inline-flex justify-center rounded-lg border border-transparent bg-indigo-600 px-6 py-3 text-base font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all">
+                        Play Again
+                    </button>
+                </div>
+
+                <!-- Bottom Buttons -->
+                <div class="border-t border-gray-200 pt-6 flex flex-col sm:flex-row sm:justify-end gap-3">
+                    <button id="submit-button" type="submit" class="w-full sm:w-auto inline-flex justify-center rounded-lg border border-transparent bg-indigo-600 px-6 py-3 text-base font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all">
+                        Submit Answer
+                    </button>
+                    <button id="next-button" type="button" class="hidden w-full sm:w-auto inline-flex justify-center rounded-lg border border-gray-300 bg-white px-6 py-3 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all">
+                        Next Briefing →
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+
+    <script>
+    window.onload = function() {
+
+        // ===== STATE =====
+        let allScenarios = [];
+        let gameScenarios = [];
+        let currentScenarioIndex = 0;
+        let currentScore = 0;
+        const totalQuestionsPerScenario = 4;
+        const scenariosPerGame = 5;
+
+        // DOM elements
+        const form = document.getElementById('policy-form');
+        const formContainer = document.getElementById('form-container');
+        const problemText = document.getElementById('problem-text');
+        const tagRow = document.getElementById('tag-row');
+
+        const progressText = document.getElementById('progress-text');
+        const scoreText = document.getElementById('score-text');
+        const restartMini = document.getElementById('restart-mini');
+
+        const reportContainer = document.getElementById('report-container');
+        const roundScoreDisplay = document.getElementById('round-score-display');
+        const examinerReport = document.getElementById('examiner-report');
+
+        const moodPanel = document.getElementById('mood-panel');
+
+        const finalScoreContainer = document.getElementById('final-score-container');
+        const finalScoreText = document.getElementById('final-score-text');
+        const finalExaminerBlock = document.getElementById('final-examiner-block');
+
+        const submitButton = document.getElementById('submit-button');
+        const nextButton = document.getElementById('next-button');
+        const restartButton = document.getElementById('restart-button');
+
+        const showCorrectBtn = document.getElementById('show-correct-btn');
+
+        // briefing helper DOM
+        const briefingToggle = document.getElementById('briefing-toggle');
+        const briefingPanel = document.getElementById('briefing-panel');
+        const briefingArrow = document.getElementById('briefing-arrow');
+        const briefingChips = document.getElementById('briefing-chips');
+        const briefingDetails = document.getElementById('briefing-details');
+        const briefingTitle = document.getElementById('briefing-title');
+        const briefingBody = document.getElementById('briefing-body');
+
+        // ===== POLICY SUMMARY DATA FOR BRIEFING PANEL =====
+        const policyInfo = {
+            "income tax": {
+                title: "Income Tax",
+                lines: [
+                    "Paid by households on wages/salaries.",
+                    "Progressive in many systems (rich pay higher %).",
+                    "Good for equity / redistribution.",
+                    "Too high can reduce incentives to work overtime."
+                ]
+            },
+            "corporation tax": {
+                title: "Corporation Tax",
+                lines: [
+                    "Tax on firms’ profits.",
+                    "Cutting it leaves firms with more retained profit.",
+                    "Often used to boost investment and jobs in recession.",
+                    "Usually proportional (flat % of profit)."
+                ]
+            },
+            "vat": {
+                title: "VAT / Sales Tax",
+                lines: [
+                    "Tax on most consumer spending.",
+                    "Fast way to raise a lot of revenue.",
+                    "Regressive: lower-income households spend a higher % of income, so they feel it more."
+                ]
+            },
+            "excise duties": {
+                title: "Excise Duties",
+                lines: [
+                    "Extra tax on specific products (sugary drinks, petrol).",
+                    "Used to reduce harmful or polluting consumption.",
+                    "Raises government revenue at the same time.",
+                    "Usually regressive because everyone pays the same per unit."
+                ]
+            },
+            "inheritance tax": {
+                title: "Inheritance Tax",
+                lines: [
+                    "Tax on large wealth transfers when someone dies.",
+                    "Targets rich families passing on big assets.",
+                    "Aimed at reducing long-term inequality.",
+                    "Highly progressive (only affects high-wealth estates)."
+                ]
+            },
+            "capital gains tax": {
+                title: "Capital Gains Tax",
+                lines: [
+                    "Tax on profit from selling assets: shares, property, etc.",
+                    "Targets rich individuals whose income is mainly assets, not wages.",
+                    "Seen as fairness / equity policy.",
+                    "Progressive: mainly paid by wealthier asset owners."
+                ]
+            },
+            "national insurance": {
+                title: "Payroll / National Insurance",
+                lines: [
+                    "Tax linked to being employed (taken from wages).",
+                    "Used to fund healthcare / pensions.",
+                    "Often regressive at the top end (contribution cap)."
+                ]
+            }
+        };
+
+        // ===== SCENARIOS =====
+        function setupScenarios() {
+            allScenarios = [
+                {
+                    problem: "The gap between the richest and poorest households is growing. The government wants to promote equity and support poorer households by redistributing income.",
+                    tags: ["Equity / Redistribution","Inequality"],
+                    answers: { taxName: "income tax", action: "increase", taxTool: "direct", taxSystem: "progressive" },
+                    mood: [
+                        { who:"Low-income households", emoji:"😃", note:"Receive more support funded by higher taxes on the rich" },
+                        { who:"High-income households", emoji:"😡", note:"Face higher tax on earnings" },
+                        { who:"Government budget", emoji:"🙂", note:"More revenue to spend on services / welfare" },
+                        { who:"Equality / fairness", emoji:"😃", note:"Progressive tax reduces the income gap" }
+                    ],
+                    report: {
+                        taxName: "We want redistribution. The tool that directly takes more from high earners is Income Tax.",
+                        action: "To redistribute, you must Increase it on top earners.",
+                        taxTool: "Income tax is paid directly by the individual to the government, so it is a Direct Tax.",
+                        taxSystem: "A tax that takes a higher percentage from high earners is Progressive."
+                    }
+                },
+                {
+                    problem: "The economy is in a recession. Businesses are not investing in new equipment, and the government wants to support firms to boost economic growth.",
+                    tags: ["Growth","Recession","Investment"],
+                    answers: { taxName: "corporation tax", action: "decrease", taxTool: "direct", taxSystem: "proportional" },
+                    mood: [
+                        { who:"Firms / producers", emoji:"😃", note:"Keep more post-tax profit to invest" },
+                        { who:"Workers / jobs", emoji:"🙂", note:"Higher chance of hiring and expansion" },
+                        { who:"Government budget", emoji:"😐", note:"Lower tax revenue in short run" },
+                        { who:"Equality / fairness", emoji:"😐", note:"Focus is growth, not redistribution" }
+                    ],
+                    report: {
+                        taxName: "We’re trying to make firms invest. Corporation Tax hits profits directly, so it's the clearest lever.",
+                        action: "To encourage investment, you Decrease corporation tax. Firms keep more profit and are more willing to buy capital.",
+                        taxTool: "Corporation tax is paid straight from firms to the government → Direct Tax.",
+                        taxSystem: "Usually a flat percentage of profit, so that is Proportional."
+                    }
+                },
+                {
+                    problem: "The high consumption of sugary drinks is causing a public health crisis (a demerit good). The government wants to correct this market failure. This policy will also raise government revenue.",
+                    tags: ["Health","Demerit good","Market failure"],
+                    answers: { taxName: "excise duties", action: "increase", taxTool: "indirect", taxSystem: "regressive" },
+                    mood: [
+                        { who:"Public Health", emoji:"😃", note:"Higher prices discourage sugary drinks" },
+                        { who:"Low-income households", emoji:"😡", note:"Regressive: bigger % hit to their income" },
+                        { who:"Government budget", emoji:"😃", note:"Collects extra revenue per can/bottle" },
+                        { who:"Soft drink firms", emoji:"😡", note:"Face lower demand" }
+                    ],
+                    report: {
+                        taxName: "For a specific harmful product, governments use Excise Duties.",
+                        action: "To cut consumption, you Increase that duty so the drink gets more expensive.",
+                        taxTool: "Excise duties are added to the product price by firms, then passed on → Indirect Tax.",
+                        taxSystem: "A per-unit or flat-rate tax hits poorer consumers relatively harder → Regressive."
+                    }
+                },
+                {
+                    problem: "The government is spending far more than it earns and has a large budget deficit. It needs to collect more revenue to reduce this deficit.",
+                    tags: ["Budget deficit","Government revenue"],
+                    answers: { taxName: "vat", action: "increase", taxTool: "indirect", taxSystem: "regressive" },
+                    mood: [
+                        { who:"Government budget", emoji:"😃", note:"Fast way to raise money" },
+                        { who:"All consumers", emoji:"😡", note:"Pay more on most goods/services" },
+                        { who:"Equality / fairness", emoji:"😡", note:"Regressive – hurts low-income proportionally more" },
+                        { who:"Firms (short run)", emoji:"😐", note:"Demand may dip slightly if prices jump" }
+                    ],
+                    report: {
+                        taxName: "To raise lots of money quickly across the whole economy, VAT / sales tax is standard.",
+                        action: "To fix the deficit, you Increase the VAT rate.",
+                        taxTool: "VAT is charged at purchase and paid to government by firms → Indirect Tax.",
+                        taxSystem: "Because everyone pays the same rate on spending, poorer households lose a higher % of income → Regressive."
+                    }
+                },
+                {
+                    problem: "The country is failing to meet its climate goals. Petrol and diesel use is a major source of pollution. The government wants to discourage this and raise money.",
+                    tags: ["Environment","Externalities","Pollution"],
+                    answers: { taxName: "excise duties", action: "increase", taxTool: "indirect", taxSystem: "regressive" },
+                    mood: [
+                        { who:"Environment / climate", emoji:"😃", note:"Higher fuel price discourages pollution" },
+                        { who:"Drivers (especially lower-income commuters)", emoji:"😡", note:"Fuel gets more expensive and this hits their budget" },
+                        { who:"Government budget", emoji:"😃", note:"Extra fuel duty = extra revenue" },
+                        { who:"Car industry (petrol/diesel)", emoji:"😡", note:"Lower demand for high-emission vehicles" }
+                    ],
+                    report: {
+                        taxName: "To discourage pollution-heavy fuels you use an Excise Duty (fuel duty).",
+                        action: "You Increase it so petrol/diesel becomes less attractive.",
+                        taxTool: "Firms add the duty into the retail price → Indirect Tax.",
+                        taxSystem: "Flat per litre, which bites poorer drivers harder → Regressive."
+                    }
+                },
+                {
+                    problem: "Almost all national wealth is being passed down inside a small group of very rich families. The government wants to promote fairness between generations.",
+                    tags: ["Wealth inequality","Equity"],
+                    answers: { taxName: "inheritance tax", action: "increase", taxTool: "direct", taxSystem: "progressive" },
+                    mood: [
+                        { who:"Very wealthy families", emoji:"😡", note:"Pay more when transferring big estates" },
+                        { who:"Government budget", emoji:"🙂", note:"More revenue from high-wealth estates" },
+                        { who:"Equality / fairness", emoji:"😃", note:"Limits extreme inherited wealth" },
+                        { who:"Average households", emoji:"🙂", note:"Usually below the threshold so not affected" }
+                    ],
+                    report: {
+                        taxName: "We’re targeting large inherited wealth, so that’s Inheritance Tax.",
+                        action: "To reduce extreme inherited advantage, you Increase it.",
+                        taxTool: "It’s paid directly out of the estate → Direct Tax.",
+                        taxSystem: "Only applies above high thresholds, so high-wealth pay a higher share → Progressive."
+                    }
+                },
+                {
+                    problem: "Public healthcare is underfunded and the budget deficit is widening. The government wants to raise money in a way linked to employment to stabilise funding.",
+                    tags: ["Healthcare funding","Budget","Employment"],
+                    answers: { taxName: "national insurance", action: "increase", taxTool: "direct", taxSystem: "regressive" },
+                    mood: [
+                        { who:"Healthcare system", emoji:"😃", note:"More reliable funding" },
+                        { who:"Workers", emoji:"😡", note:"Higher deductions from wages" },
+                        { who:"Government budget", emoji:"😃", note:"Stronger revenue stream" },
+                        { who:"Equality / fairness", emoji:"😡", note:"Often regressive at high incomes (cap on contributions)" }
+                    ],
+                    report: {
+                        taxName: "They want money for healthcare from employment. That’s National Insurance / payroll tax.",
+                        action: "To fix underfunding, you Increase contributions.",
+                        taxTool: "It’s taken directly from wages, so it’s a Direct Tax.",
+                        taxSystem: "Because high earners often stop paying above a cap, lower/middle earners pay a bigger % → Regressive."
+                    }
+                },
+                {
+                    problem: "Wealthy individuals are earning most of their money from buying and selling assets like stocks and second homes, not salaries. The government thinks this is unfair and wants more equity.",
+                    tags: ["Fairness","Wealth tax","Assets"],
+                    answers: { taxName: "capital gains tax", action: "increase", taxTool: "direct", taxSystem: "progressive" },
+                    mood: [
+                        { who:"Asset-rich investors", emoji:"😡", note:"Pay more when they cash out profits" },
+                        { who:"Equality / fairness", emoji:"😃", note:"Brings tax on asset income closer to tax on wages" },
+                        { who:"Government budget", emoji:"🙂", note:"More revenue from high-wealth individuals" },
+                        { who:"Average workers", emoji:"🙂", note:"Little/no direct effect if they don’t own big assets" }
+                    ],
+                    report: {
+                        taxName: "The issue is profit from assets, not wages. That’s Capital Gains Tax.",
+                        action: "To improve fairness, you Increase it.",
+                        taxTool: "It’s paid straight by the individual on their gain → Direct Tax.",
+                        taxSystem: "Mainly hits high-asset people → Progressive."
+                    }
+                }
+            ];
+        }
+
+        // ===== GAME START / RESTART =====
+        function startGame() {
+            setupScenarios();
+            gameScenarios = shuffleArray(allScenarios).slice(0, scenariosPerGame);
+            currentScenarioIndex = 0;
+            currentScore = 0;
+
+            // reset UI
+            finalScoreContainer.classList.add('hidden');
+            form.classList.remove('hidden');
+            reportContainer.classList.add('hidden');
+            formContainer.classList.remove('hidden');
+            submitButton.classList.remove('hidden');
+            nextButton.classList.add('hidden');
+
+            loadScenario(0);
+            updateScoreDisplay();
+            clearRadios();
+        }
+
+        function clearRadios(){
+            document.querySelectorAll('input[type="radio"]').forEach(r => {
+                r.checked = false;
+                r.classList.remove('ring-2','ring-green-500','ring-red-500');
+            });
+        }
+
+        // ===== LOAD SCENARIO =====
+        function loadScenario(idx) {
+            const scenario = gameScenarios[idx];
+            problemText.textContent = scenario.problem;
+            progressText.textContent = `Briefing ${idx+1} / ${scenariosPerGame}`;
+
+            // tags display
+            tagRow.innerHTML = "";
+            (scenario.tags || []).forEach(t => {
+                const span = document.createElement('span');
+                span.className = "tag-pill";
+                span.textContent = t;
+                tagRow.appendChild(span);
+            });
+
+            // reset visibility
+            reportContainer.classList.add('hidden');
+            formContainer.classList.remove('hidden');
+            submitButton.classList.remove('hidden');
+            nextButton.classList.add('hidden');
+
+            // hide highlight button
+            showCorrectBtn.classList.add('hidden');
+
+            // reset briefing helper detail
+            briefingDetails.classList.add('hidden');
+            briefingBody.innerHTML = "";
+            briefingTitle.textContent = "";
+        }
+
+        // ===== SUBMIT / SCORE THIS ROUND =====
+        function handleSubmitAnswers() {
+            const scenario = gameScenarios[currentScenarioIndex];
+            const correctAnswers = scenario.answers;
+            const questionKeys = ['action','taxName','taxTool','taxSystem'];
+            const questionLabels = {
+                action: '1. Policy Action',
+                taxName: '2. Which Tax?',
+                taxTool: '3. Tax Tool',
+                taxSystem: '4. Tax System'
+            };
+
+            // collect
+            const userAnswers = {};
+            let missing = false;
+            questionKeys.forEach(k => {
+                const input = form.querySelector(`input[name="${k}"]:checked`);
+                userAnswers[k] = input ? input.value : null;
+                if(!input){ missing = true; }
+            });
+
+            if(missing){
+                showModal("Please answer all 4 questions before submitting.");
+                return;
+            }
+
+            // mark
+            let roundScore = 0;
+            let html = "";
+            let weaknessLog = [];
+
+            questionKeys.forEach(key => {
+                const isCorrect = userAnswers[key] === correctAnswers[key];
+                if(isCorrect){ roundScore++; }
+                const blockClass = isCorrect ? "q-block-correct" : "q-block-incorrect";
+
+                let examinerVoice = scenario.report[key];
+                if(isCorrect){
+                    examinerVoice = `<strong>Good:</strong> ${examinerVoice} You identified the correct idea, which would gain marks in an explain/analysis question.`;
+                } else {
+                    examinerVoice = `<strong>Careful:</strong> ${examinerVoice} You mixed this with something else. Examiners see this mistake a lot – review this one.`;
+                    weaknessLog.push(key);
+                }
+
+                html += `
+                <div class="${blockClass}">
+                    <div class="font-semibold text-gray-900 mb-1">${questionLabels[key]}</div>
+                    <p class="mb-1">
+                        Your answer:
+                        <span class="font-medium ${isCorrect ? 'text-green-700' : 'text-red-700'}">
+                            ${userAnswers[key]}
+                        </span>
+                        (${isCorrect ? 'Correct' : 'Incorrect'})
+                    </p>
+                    <p class="text-sm text-gray-800 leading-relaxed">${examinerVoice}</p>
+                </div>
+                `;
+            });
+
+            currentScore += roundScore;
+            updateScoreDisplay();
+
+            // stakeholder mood
+            moodPanel.innerHTML = scenario.mood.map(m => {
+                return `<span><span class="mood-emoji">${m.emoji}</span><span class="font-medium">${m.who}</span> – ${m.note}</span>`;
+            }).join("");
+
+            roundScoreDisplay.textContent = `You scored ${roundScore} / ${totalQuestionsPerScenario} for this briefing.`;
+            examinerReport.innerHTML = html;
+
+            formContainer.classList.add('hidden');
+            reportContainer.classList.remove('hidden');
+            submitButton.classList.add('hidden');
+            nextButton.classList.remove('hidden');
+
+            showCorrectBtn.classList.remove('hidden');
+
+            scenario._weaknessLog = weaknessLog;
+        }
+
+        // ===== MOVE TO NEXT ROUND OR END =====
+        function handleNextScenario() {
+            currentScenarioIndex++;
+            if (currentScenarioIndex < scenariosPerGame) {
+                clearRadios();
+                loadScenario(currentScenarioIndex);
+            } else {
+                showFinalScore();
+            }
+        }
+
+        // ===== FINAL SUMMARY =====
+        function showFinalScore(){
+            const freq = {};
+            gameScenarios.forEach(s => {
+                (s._weaknessLog || []).forEach(w => {
+                    freq[w] = (freq[w]||0)+1;
+                });
+            });
+
+            let advice = "";
+            if(Object.keys(freq).length === 0){
+                advice = "Strong performance. You consistently matched tax tools to aims. This would score well in structured questions.";
+            } else {
+                advice = "To reach top band, review:\n";
+                for(const k in freq){
+                    if(k === "taxSystem"){
+                        advice += "• Progressive vs regressive vs proportional – who actually pays a higher %?\n";
+                    } else if(k === "taxName"){
+                        advice += "• Choosing the correct tax for the policy aim (e.g. inheritance tax vs capital gains vs VAT).\n";
+                    } else if(k === "action"){
+                        advice += "• Whether the tax needs to go up or down to hit the aim.\n";
+                    } else if(k === "taxTool"){
+                        advice += "• Direct vs indirect: who hands the money to the government?\n";
+                    }
+                }
+                advice += "These are typical 2–4 mark explanation areas in IGCSE Economics.";
+            }
+
+            finalScoreText.textContent = `Your final score is: ${currentScore} / ${scenariosPerGame * totalQuestionsPerScenario}`;
+            finalExaminerBlock.textContent = advice;
+
+            form.classList.add('hidden');
+            finalScoreContainer.classList.remove('hidden');
+        }
+
+        // ===== UTILS =====
+        function updateScoreDisplay(){
+            scoreText.textContent = `Total Score: ${currentScore}`;
+        }
+
+        function shuffleArray(array){
+            for(let i=array.length-1;i>0;i--){
+                const j = Math.floor(Math.random()*(i+1));
+                [array[i],array[j]]=[array[j],array[i]];
+            }
+            return array;
+        }
+
+        function showModal(message){
+            const modalOverlay = document.createElement('div');
+            modalOverlay.className = "fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50";
+            const modalBox = document.createElement('div');
+            modalBox.className = "bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center";
+            const modalMessage = document.createElement('p');
+            modalMessage.className = "text-lg text-gray-800 mb-4";
+            modalMessage.textContent = message;
+            const closeButton = document.createElement('button');
+            closeButton.className = "inline-flex justify-center rounded-lg border border-transparent bg-indigo-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-indigo-700";
+            closeButton.textContent = "OK";
+            closeButton.onclick = () => { document.body.removeChild(modalOverlay); };
+            modalBox.appendChild(modalMessage);
+            modalBox.appendChild(closeButton);
+            modalOverlay.appendChild(modalBox);
+            document.body.appendChild(modalOverlay);
+            closeButton.focus();
+        }
+
+        // ===== HIGHLIGHT CORRECT ANSWERS BUTTON =====
+        showCorrectBtn.addEventListener('click', () => {
+            const scenario = gameScenarios[currentScenarioIndex];
+            const correct = scenario.answers;
+            Object.keys(correct).forEach(name => {
+                const radios = document.querySelectorAll(`input[name="${name}"]`);
+                radios.forEach(r => {
+                    r.classList.remove('ring-2','ring-green-500','ring-red-500');
+                    if(r.value === correct[name]){
+                        r.classList.add('ring-2','ring-green-500');
+                    }
+                });
+            });
+        });
+
+        // ===== POLICY BRIEFING PANEL =====
+        function renderBriefingChips(){
+            briefingChips.innerHTML = "";
+            Object.keys(policyInfo).forEach(key => {
+                const chip = document.createElement('button');
+                chip.type = "button";
+                chip.className = "brief-chip";
+                chip.textContent = policyInfo[key].title;
+                chip.addEventListener('click', () => {
+                    const info = policyInfo[key];
+                    briefingTitle.textContent = info.title;
+                    briefingBody.innerHTML = info.lines.map(l => `<div>• ${l}</div>`).join("");
+                    briefingDetails.classList.remove('hidden');
+                });
+                briefingChips.appendChild(chip);
+            });
+        }
+
+        briefingToggle.addEventListener('click', () => {
+            const isHidden = briefingPanel.classList.contains('hidden');
+            if(isHidden){
+                briefingPanel.classList.remove('hidden');
+                briefingArrow.textContent = "▲";
+            } else {
+                briefingPanel.classList.add('hidden');
+                briefingArrow.textContent = "▼";
+            }
+        });
+
+        // ===== EVENT LISTENERS =====
+        form.addEventListener('submit', function(e){
+            e.preventDefault();
+            handleSubmitAnswers();
+        });
+        nextButton.addEventListener('click', handleNextScenario);
+        restartButton.addEventListener('click', startGame);
+        restartMini.addEventListener('click', startGame);
+
+        // ===== INIT =====
+        renderBriefingChips();
+        startGame();
+    };
+    </script>
+</body>
+</html>
